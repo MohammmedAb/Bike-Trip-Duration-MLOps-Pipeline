@@ -9,22 +9,17 @@ from sklearn.svm import SVR
 
 from sklearn.metrics import mean_squared_error
 from sklearn.preprocessing import MinMaxScaler
-from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.model_selection import train_test_split
 
 import mlflow
 from mlflow.data.pandas_dataset import PandasDataset
 from mlflow.tracking import MlflowClient
-from mlflow.models import ModelSignature, infer_signature
 
-from prefect import task, Flow
+from prefect import task, flow
 
-@task(retries=3, retry_delay_seconds=2, log_prints=True)
+@task(retries=3, retry_delay_seconds=2, log_prints=False)
 def read_data(data_path: str) -> pd.DataFrame:
-    AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
-    AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
-
     df = pd.read_csv(data_path)
-
     return df
 
 
@@ -86,10 +81,10 @@ def preprocessing(df):
 def train_best_model(X_train, y_train, X_test, y_test):
 
     models = {
-    # "Linear Regression": LinearRegression(),
+    "Linear Regression": LinearRegression(),
     # "Ridge": Ridge(),
     # "Lasso": Lasso(),
-    "Elastic Net": ElasticNet(),
+    # "Elastic Net": ElasticNet(),
     # "Decision Tree": DecisionTreeRegressor(),
     # "SVR": SVR(),
     # "Gradient Boosting": GradientBoostingRegressor(),
@@ -98,9 +93,9 @@ def train_best_model(X_train, y_train, X_test, y_test):
     mlflow.autolog()
     
     for name, model in models.items():
-        with mlflow.start_run(run_name='auto log'):
+        with mlflow.start_run(run_name=''):
 
-            mlflow.set_tag("Model_name", name)
+            # mlflow.set_tag("Model_name", name)
 
             model.fit(X_train, y_train)
 
@@ -110,10 +105,34 @@ def train_best_model(X_train, y_train, X_test, y_test):
             
             print(f"{name}: Model trained and logged with MSE: {mse}")
 
+@task(log_prints=True)
+def register_best_model(year, month):
+    client = MlflowClient()
+    experiment_id = client.get_experiment_by_name(f"Bike-Rides Duration Prediction: {year}-{month}").experiment_id
+    runs = client.search_runs(experiment_id, order_by=["metrics.mse DESC"], max_results=1)
+    best_run_id = runs[0].info.run_id
 
-@Flow
-def main_flow(data_path: str):
+    best_run_details = client.get_run(best_run_id)
+    best_run_artifact_uri = best_run_details.info.artifact_uri
+
+    model_name = f"Best Model: {year}-{month}"
+
+    try: 
+        client.get_registered_model(model_name)
+    except:
+        client.create_registered_model(model_name)
+
+    client.create_model_version(f"Best Model: {year}-{month}", source=best_run_artifact_uri ,run_id=best_run_id)
+    latest_version = client.get_latest_versions(model_name)[0]
+    client.transition_model_version_stage(name=model_name, version=latest_version.version, stage="Production", archive_existing_versions=True)
+
+
+@flow(log_prints=True)
+def main_flow(year: str="2023", month: str="01"):
+    data_path = f"s3://mlops-personal-project/Traning-Data/{year}{month}-capitalbikeshare-tripdata.csv"
+    print('Reading data: ', data_path)
     df = read_data(data_path)
+    print('Data read successfully')
     processed_df = preprocessing(df)
 
     X = processed_df.drop(columns='duration')
@@ -121,12 +140,19 @@ def main_flow(data_path: str):
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
     mlflow.set_tracking_uri(uri="http://ec2-16-171-38-100.eu-north-1.compute.amazonaws.com:5000")
-    mlflow.set_experiment(experiment_name="Bike-Rides")
+    mlflow.set_experiment(experiment_name=f"Bike-Rides Duration Prediction: {year}-{month}")
 
+    print('Training best model...')
     train_best_model(X_train, y_train, X_test, y_test)
+    print('Model trained and logged successfully!')
+
+    print('Register the best model...')
+    register_best_model(year, month)
+    print('Model registered successfully!')
+
 
 if __name__ == "__main__":
-    main_flow(data_path="s3://mlops-personal-project/Traning-Data/2023/202301-capitalbikeshare-tripdata.csv")
+    main_flow()
         
     
 

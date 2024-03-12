@@ -14,6 +14,8 @@ matplotlib = "*"
 mlflow = "*"
 boto3 = "*"
 s3fs = "*"
+flask = "*"
+python-dotenv = "*"
 
 [dev-packages]
 

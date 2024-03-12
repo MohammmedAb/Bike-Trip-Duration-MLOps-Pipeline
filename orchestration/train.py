@@ -67,12 +67,12 @@ def preprocessing(df):
     lower_bound = Q1 - 1.5 * IQR
     upper_bound = Q3 + 1.5 * IQR
     # Remove outliers
-    df_filtered = df[(df['duration'] >= lower_bound) & (df['duration'] <= upper_bound)]
+    df = df[(df['duration'] >= lower_bound) & (df['duration'] <= upper_bound)]
 
     df['distance'] = haversine_np(df['start_lng'],df['start_lat'], df['end_lng'],df['end_lat'])
     
     categ_clumns = ['rideable_type', 'member_casual']
-    df = pd.get_dummies(df, columns=categ_clumns, drop_first=True)
+    df = pd.get_dummies(df, columns=categ_clumns, drop_first=False)
 
     deleted_columns=['started_at','ended_at','ride_id', 'start_lng', 'start_lat', 'end_lng', 'end_lat', 'start_station_name', 'start_station_id', 'end_station_name','end_station_id']
     df.drop(columns=deleted_columns, inplace=True)
@@ -84,13 +84,13 @@ def preprocessing(df):
 def train_best_model(X_train, y_train, X_test, y_test):
 
     models = {
-    # "Linear Regression": LinearRegression(),
+    "Linear Regression": LinearRegression(),
     "Ridge": Ridge(),
     "Lasso": Lasso(),
-    # "Elastic Net": ElasticNet(),
+    "Elastic Net": ElasticNet(),
     # "Decision Tree": DecisionTreeRegressor(),
     # "SVR": SVR(),
-    # "Gradient Boosting": GradientBoostingRegressor(),
+    "Gradient Boosting": GradientBoostingRegressor(),
     }
 
     mlflow.autolog()

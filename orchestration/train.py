@@ -1,5 +1,6 @@
 import pandas as pd
 import os
+from dotenv import load_dotenv
 import numpy as np
 
 from sklearn.linear_model import LinearRegression, Ridge, Lasso, ElasticNet
@@ -30,10 +31,7 @@ def read_data(data_path: str) -> pd.DataFrame:
 def haversine_np(lon1, lat1, lon2, lat2):
     """
     Calculate the great circle distance between two points
-    on the earth (specified in decimal degrees)
-    
-    All args must be of equal length.    
-    
+    on the earth specified in decimal degrees
     """
     lon1, lat1, lon2, lat2 = map(np.radians, [lon1, lat1, lon2, lat2])
     
@@ -47,7 +45,7 @@ def haversine_np(lon1, lat1, lon2, lat2):
     return km
 
 @task
-def preprocessing(df):
+def preprocessing(df: pd.DataFrame) -> pd.DataFrame:
     df['started_at'] = pd.to_datetime(df['started_at'])
     df['ended_at'] = pd.to_datetime(df['ended_at'])
     
@@ -81,7 +79,8 @@ def preprocessing(df):
     return df
 
 @task(log_prints=True)
-def train_best_model(X_train, y_train, X_test, y_test):
+def train_and_log_models(X_train, y_train, X_test, y_test):
+    """Train and log models to MLflow."""
 
     models = {
     "Linear Regression": LinearRegression(),
@@ -97,21 +96,19 @@ def train_best_model(X_train, y_train, X_test, y_test):
     
     for name, model in models.items():
         with mlflow.start_run(run_name=''):
-
             # mlflow.set_tag("Model_name", name)
-
             model.fit(X_train, y_train)
-
             predictions = model.predict(X_test)
-
             mse = mean_squared_error(y_test, predictions)
-            
             print(f"{name}: Model trained and logged with MSE: {mse}")
 
 @task(log_prints=True)
 def register_best_model(year, month):
     client = MlflowClient()
-    experiment_id = client.get_experiment_by_name(f"Bike-Rides Duration Prediction: {year}-{month}").experiment_id
+
+    experiment_name = f"Bike-Rides Duration Prediction: {year}-{month}"
+    experiment_id = client.get_experiment_by_name(experiment_name).experiment_id
+    
     runs = client.search_runs(experiment_id, order_by=["metrics.training_mean_squared_error ASC"], max_results=1)
     best_run_id = runs[0].info.run_id
 
@@ -143,20 +140,22 @@ def register_best_model(year, month):
 @flow(log_prints=True)
 def main_flow(year: str="2023", month: str="01"):
     data_path = f"s3://mlops-personal-project/Traning-Data/{year}{month}-capitalbikeshare-tripdata.csv"
-    print('Reading data: ', data_path)
+    
+    print('Reading data... ', data_path)
     df = read_data(data_path)
     print('Data read successfully')
+    
     processed_df = preprocessing(df)
 
     X = processed_df.drop(columns='duration')
     y = processed_df['duration']
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    mlflow.set_tracking_uri(uri="http://ec2-16-171-38-100.eu-north-1.compute.amazonaws.com:5000")
+    mlflow.set_tracking_uri(uri=MLFLOW_TRACKING_URI)
     mlflow.set_experiment(experiment_name=f"Bike-Rides Duration Prediction: {year}-{month}")
 
     print('Training best model...')
-    train_best_model(X_train, y_train, X_test, y_test)
+    train_and_log_models(X_train, y_train, X_test, y_test)
     print('Model trained and logged successfully!')
 
     print('Register the best model...')
@@ -167,6 +166,9 @@ def main_flow(year: str="2023", month: str="01"):
 
 
 if __name__ == "__main__":
+    
+    load_dotenv()
+    MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
     main_flow()
         
     

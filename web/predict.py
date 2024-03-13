@@ -18,10 +18,7 @@ model = mlflow.pyfunc.load_model(f"runs:/{TEST_RUN_ID}/model")
 def haversine_np(lon1, lat1, lon2, lat2):
     """
     Calculate the great circle distance between two points
-    on the earth (specified in decimal degrees)
-    
-    All args must be of equal length.    
-    
+    on the earth specified in decimal degrees
     """
     lon1, lat1, lon2, lat2 = map(np.radians, [lon1, lat1, lon2, lat2])
     
@@ -64,9 +61,6 @@ def preprocessing(df):
     extra_columns = [col for col in df.columns if col not in features]
     df.drop(columns=extra_columns, inplace=True)
 
-
-    # deleted_columns=['started_at','ended_at','ride_id', 'start_lng', 'start_lat', 'end_lng', 'end_lat', 'start_station_name', 'start_station_id', 'end_station_name','end_station_id', 'duration']
-    # df.drop(columns=deleted_columns, inplace=True)
     df.fillna(0)
 
     return df

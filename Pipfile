@@ -16,6 +16,7 @@ boto3 = "*"
 s3fs = "*"
 flask = "*"
 python-dotenv = "*"
+gunicorn = "*"
 
 [dev-packages]
 

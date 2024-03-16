@@ -8,7 +8,7 @@ COPY ["Pipfile", "Pipfile.lock", "./"]
 
 RUN pipenv install --system --deploy
 
-COPY ["web/predict.py", "./"]
+COPY ["web/predict.py",".env", "./"]
 
 EXPOSE 9696
 

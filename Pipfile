@@ -18,6 +18,7 @@ flask = "*"
 python-dotenv = "*"
 gunicorn = "*"
 evidently = "*"
+psycopg = "*"
 
 [dev-packages]
 

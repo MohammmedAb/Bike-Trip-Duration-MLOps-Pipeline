@@ -7,7 +7,13 @@ import pytz
 import pandas as pd
 import io
 import psycopg
+from dotenv import load_dotenv
+import os 
 
+load_dotenv()
+print(os.getenv('AWS_INSTANCE'))
+
+AWS_INSTANCE = os.getenv('AWS_INSTANCE')
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s]: %(message)s")
 
 SEND_TIMEOUT = 10
@@ -24,11 +30,11 @@ create table dummy_metrics(
 """
 
 def prep_db():
-	with psycopg.connect("host=localhost port=5432 user=postgres password=example", autocommit=True) as conn:
+	with psycopg.connect(f"host={AWS_INSTANCE} port=5432 user=postgres password=example", autocommit=True) as conn:
 		res = conn.execute("SELECT 1 FROM pg_database WHERE datname='test'")
 		if len(res.fetchall()) == 0:
 			conn.execute("create database test;")
-		with psycopg.connect("host=localhost port=5432 dbname=test user=postgres password=example") as conn:
+		with psycopg.connect(f"host={AWS_INSTANCE} port=5432 dbname=test user=postgres password=example") as conn:
 			conn.execute(create_table_statement)
 
 def calculate_dummy_metrics_postgresql(curr):
@@ -44,7 +50,7 @@ def calculate_dummy_metrics_postgresql(curr):
 def main():
 	prep_db()
 	last_send = datetime.datetime.now() - datetime.timedelta(seconds=10)
-	with psycopg.connect("host=localhost port=5432 dbname=test user=postgres password=example", autocommit=True) as conn:
+	with psycopg.connect(f"host={AWS_INSTANCE} port=5432 dbname=test user=postgres password=example", autocommit=True) as conn:
 		for i in range(0, 100):
 			with conn.cursor() as curr:
 				calculate_dummy_metrics_postgresql(curr)

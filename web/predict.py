@@ -4,10 +4,15 @@ import os
 from flask import Flask, request, jsonify
 import pandas as pd
 import numpy as np
+import psycopg
+import json
 
 load_dotenv()
 
 MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
+DB_USERNAME = os.getenv('DB_USERNAME')
+DB_PASSWORD = os.getenv('DB_PASSWORD')
+
 mlflow.set_tracking_uri(uri=MLFLOW_TRACKING_URI)
 
 TEST_RUN_ID = os.getenv("TEST_RUN_ID")
@@ -69,6 +74,21 @@ def predict(data):
     prediction = model.predict(data)
     return prediction
 
+def store_prediction(prediction_input_json, prediction, dummy_actual_value):
+    try:
+        with psycopg.connect(f"host={os.getenv('AWS_INSTANCE')} port=5432 dbname='monitoring' user={DB_USERNAME} password={DB_PASSWORD}", autocommit=True) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "INSERT INTO predictions (prediction_input, predicted_value, actual_value) VALUES (%s, %s, %s)",
+                    (prediction_input_json, float(prediction[0]), dummy_actual_value)
+                )
+        print('Data inserted successfully.')
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+
+
+
 app = Flask('test-app')
 
 @app.route('/predict', methods=['POST'])
@@ -77,6 +97,12 @@ def api_endpoint():
     df = pd.DataFrame(data, index=[0])
     df = preprocessing(df)
     prediction = predict(df)
+
+    prediction_input_json = df.to_json(orient='split', index=False)
+    print(prediction_input_json)
+    dummy_actual_value = np.random.uniform(prediction[0] - 10, prediction[0] + 10)  #assuming we have an actual value
+
+    store_prediction(prediction_input_json, prediction, dummy_actual_value)
 
     return jsonify({'value': prediction[0]})
 

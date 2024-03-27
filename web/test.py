@@ -9,10 +9,10 @@ test_data = {
     "start_station_id": [31904.0],
     "end_station_name": ["W Columbia St & N Washington St"],
     "end_station_id": [32609.0],
-    "start_lat": [38.885321],
-    "start_lng": [-77.156427],
-    "end_lat": [38.885621],
-    "end_lng": [-77.166917],
+    "start_lat": [29.885321],
+    "start_lng": [-17.156427],
+    "end_lat": [30.885621],
+    "end_lng": [-87.166917],
     "member_casual": ["member"]
 }
 

@@ -6,6 +6,8 @@ import pandas as pd
 import numpy as np
 import psycopg
 import json
+from datetime import datetime, timedelta
+import pytz 
 
 load_dotenv()
 
@@ -74,13 +76,19 @@ def predict(data):
     prediction = model.predict(data)
     return prediction
 
-def store_prediction(prediction_input_json, prediction, dummy_actual_value):
+def store_prediction(prediction_input_json, prediction, dummy_actual_value, prediction_time= None):
+    if prediction_time is None:
+        prediction_time = datetime.now(tz=pytz.utc) + timedelta(hours=3)
+    else:
+        prediction_time = pd.to_datetime(prediction_time, utc=True) + timedelta(hours=3)
+
+    
     try:
         with psycopg.connect(f"host={os.getenv('AWS_INSTANCE')} port=5432 dbname='monitoring' user={DB_USERNAME} password={DB_PASSWORD}", autocommit=True) as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "INSERT INTO predictions (prediction_input, predicted_value, actual_value) VALUES (%s, %s, %s)",
-                    (prediction_input_json, float(prediction[0]), dummy_actual_value)
+                    "INSERT INTO predictions (prediction_input, predicted_value, actual_value, prediction_time) VALUES (%s, %s, %s, %s)",
+                    (prediction_input_json, float(prediction[0]), dummy_actual_value, prediction_time)
                 )
         print('Data inserted successfully.')
     except Exception as e:
@@ -93,16 +101,18 @@ app = Flask('test-app')
 
 @app.route('/predict', methods=['POST'])
 def api_endpoint():
-    data = request.get_json()
+    request_data = request.get_json()
+    data = request_data['data'][0]  
+    prediction_time = request_data.get('prediction_time')
     df = pd.DataFrame(data, index=[0])
     df = preprocessing(df)
     prediction = predict(df)
 
     prediction_input_json = df.to_json(orient='split', index=False)
-    print(prediction_input_json)
+    # print(prediction_input_json)
     dummy_actual_value = np.random.uniform(prediction[0] - 10, prediction[0] + 10)  #assuming we have an actual value
 
-    store_prediction(prediction_input_json, prediction, dummy_actual_value)
+    store_prediction(prediction_input_json, prediction, dummy_actual_value, prediction_time)
 
     return jsonify({'value': prediction[0]})
 

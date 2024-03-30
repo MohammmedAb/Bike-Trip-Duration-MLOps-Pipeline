@@ -1,21 +1,40 @@
 import requests
+import pandas as pd
+from dotenv import load_dotenv
+import time
+import random
+import numpy as np
 
-test_data = {
-    "ride_id": ["65F0ACD101BF0D49"],
-    "rideable_type": ["classic_bike"],
-    "started_at": ["2023-01-04 19:34:07"],
-    "ended_at": ["2023-01-04 19:39:29"],
-    "start_station_name": ["East Falls Church Metro / Sycamore St & 19th St N"],
-    "start_station_id": [31904.0],
-    "end_station_name": ["W Columbia St & N Washington St"],
-    "end_station_id": [32609.0],
-    "start_lat": [29.885321],
-    "start_lng": [-17.156427],
-    "end_lat": [30.885621],
-    "end_lng": [-87.166917],
-    "member_casual": ["member"]
-}
+
+load_dotenv()
+
+test_df = pd.read_csv('/home/mohammed/project/mlops-project/data/202301-capitalbikeshare-tripdata.csv')
 
 url = 'http://localhost:9696/predict'
-response = requests.post(url, json=test_data)
-print(response.json())
+
+for _, row in test_df.sample(frac=1).iterrows():  
+    random_days_ago = np.random.randint(1, 20)  
+    random_timestamp = pd.Timestamp.now(tz='UTC') - pd.Timedelta(days=random_days_ago)
+    random_timestamp = random_timestamp.floor('D')
+
+    test_data = {
+        "data": [{
+            "ride_id": [row["ride_id"]],
+            "rideable_type": [row["rideable_type"]],
+            "started_at": [row["started_at"]],
+            "ended_at": [row["ended_at"]],
+            "start_station_name": [row["start_station_name"]],
+            "start_station_id": [row["start_station_id"]],
+            "end_station_name": [row["end_station_name"]],
+            "end_station_id": [row["end_station_id"]],
+            "start_lat": [row["start_lat"]],
+            "start_lng": [row["start_lng"]],
+            "end_lat": [row["end_lat"]],
+            "end_lng": [row["end_lng"]],
+            "member_casual": [row["member_casual"]]
+        }],
+        "prediction_time": random_timestamp.isoformat()
+    }
+
+    response = requests.post(url, json=test_data)
+    print(f"Data sent successfully: {response.json()}")

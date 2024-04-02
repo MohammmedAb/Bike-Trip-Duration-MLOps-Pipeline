@@ -8,19 +8,26 @@ import psycopg
 import json
 from datetime import datetime, timedelta
 import pytz 
+from mlflow.tracking import MlflowClient
+
 
 load_dotenv()
 
 MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI")
 DB_USERNAME = os.getenv('DB_USERNAME')
 DB_PASSWORD = os.getenv('DB_PASSWORD')
+client = MlflowClient()
 
-mlflow.set_tracking_uri(uri=MLFLOW_TRACKING_URI)
+def fetch_production_model(model_name: str):
+    """
+    Fetch the production model from MLflow registry
+    """
+    mlflow.set_tracking_uri(uri=MLFLOW_TRACKING_URI)
+    production_latest_version = client.get_latest_versions(model_name, ['Production'])
+    run_id=production_latest_version[-1].run_id
+    production_model = mlflow.pyfunc.load_model(f"runs:/{run_id}/model")
 
-TEST_RUN_ID = os.getenv("TEST_RUN_ID")
-model = mlflow.pyfunc.load_model(f"runs:/{TEST_RUN_ID}/model")
-
-
+    return production_model
 
 def haversine_np(lon1, lat1, lon2, lat2):
     """
@@ -72,11 +79,15 @@ def preprocessing(df):
 
     return df
 
-def predict(data):
+def predict(data ,model):
     prediction = model.predict(data)
     return prediction
 
 def store_prediction(prediction_input_json, prediction, dummy_actual_value, prediction_time= None):
+    """
+    Store the prediction in the database
+    """
+
     if prediction_time is None:
         prediction_time = datetime.now(tz=pytz.utc) + timedelta(hours=3)
     else:
@@ -101,12 +112,13 @@ app = Flask('test-app')
 
 @app.route('/predict', methods=['POST'])
 def api_endpoint():
+    production_model = fetch_production_model('Best Model: 2023-01')
     request_data = request.get_json()
     data = request_data['data'][0]  
     prediction_time = request_data.get('prediction_time')
     df = pd.DataFrame(data, index=[0])
     df = preprocessing(df)
-    prediction = predict(df)
+    prediction = predict(df, production_model)
 
     prediction_input_json = df.to_json(orient='split', index=False)
     # print(prediction_input_json)
